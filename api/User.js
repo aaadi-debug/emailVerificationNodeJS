@@ -262,22 +262,21 @@ router.get("/verified", (req, res) => {
 })
 
 // signin api
-router.post("signin", (req, res) => {
+router.post("/signin", (req, res) => {
     let { email, password } = req.body;
 
-    if(email == "" || password == "") {
-        return res.status(403).json({ message: "Cannot be Empty" })
-    } else {
+    // if(email == "" || password == "") {
+    //     return res.status(403).json({ message: "Cannot be Empty" })
+    // } else {
         // check if user exist
         User.find({ email })
-            .then((result) => {
-                // if(data.length) {
-                if(result.length) {
+            .then((data) => {
+                if(data.length) {
                     //user exists
 
                     // check if user is verified
                     if(!data[0].verified) {
-                        return res.status(403).json({ message: "Email hasn;t been verified yet! Check your inbox to verify" })
+                        return res.status(403).json({ message: "Email hasn't been verified yet! Check your inbox to verify" })
                     } else {
                         const hashedPassword = data[0].password;
                         bcrypt
@@ -299,13 +298,14 @@ router.post("signin", (req, res) => {
                     }
                     
                 } else {
-                    return res.status(403).json({ message: "Invalid Credentia;s!" })
+                    return res.status(403).json({ message: "Invalid Credentials!" })
                 }
             })
             .catch(((err) => {
+                console.log(err);
                 return res.status(403).json({ message: "An error occured while checking for existing user!" })
             }))
-    }
+    // }
 
 })
 
