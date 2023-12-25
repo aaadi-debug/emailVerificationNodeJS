@@ -1,0 +1,96 @@
+
+// Password reset 
+router.post("/requestPasswordReset", async (req, res) => {
+    const { email, redirectUrl } = req.body;
+
+    // check if email exists
+    User
+        .find({ email })
+        .then((data) => {
+            if(data.length) {
+                //user exists
+
+                // check if user is verified
+                if(!data[0].verified) {
+                    return res.status(403).json({ message: "Email hasn't been verified yet! Check your inbox to verify" })
+                } else {
+                    // procees with email to reset password
+                    sendResetEmail(data[0], redirectUrl, res);
+                }
+            } else {
+                return res.status(403).json({ message: "No account with the supplied email exists!" })
+            }
+        })
+        .catch(((err) => {
+            console.log(err);
+            return res.status(403).json({ message: "An error occured while checking for existing user!" })
+        }))
+});
+
+// send password reset email
+const sendResetEmail = ({ _id, email }, redirectUrl, res) => {
+    const resetString = uuidv4 + _id;
+
+    // First we clear all existing reset records
+    PasswordReset
+        .deleteMany({ userId: _id })
+        .then((result) => {
+            // Reset records deleted successfully
+            // Now we send the email
+
+            // mail options
+            const mailOptions = {
+                from: process.env.AUTH_EMAIL,
+                to : email,
+                subject: "Password Reset",
+                html: 
+                `   <p>We heard that you have lost the password.</p>
+                    <p>Don't worry, use the link below to reset it.</p>
+                    <p>This link <b>expires in 60 minutes</b>.</p>
+                    <p>Click <a href=${redirectUrl + '/' + _id + "/" + resetString}>here</a> to proceed.</p>
+                `
+            };
+
+            // hash the reset string
+            const saltRounds = 10;
+            bcrypt
+                .hash(resetString, saltRounds)
+                .then(hashedResetString => {
+                    // set values in password reset
+                    const newPasswordReset = new PasswordReset({
+                        userId: _id,
+                        resetString: hashedResetString,
+                        createdAt: Date.now(),
+                        expiresAt: Date.now() + 3600000
+                    });
+
+                    newPasswordReset
+                        .save()
+                        .then(() => {
+                            transporter
+                                .sendMail(mailOptions)
+                                .then(() => {
+                                    // reset email sent and pasword reset record saved
+                                    return res.status(200).json({ message: "Password reset email sent" })
+                                })
+                                .catch((err) => {
+                                    console.log(err);
+                                    return res.status(403).json({ message: "Password reset email failed" })
+                                })
+                        })
+                        .catch((err) => {
+                            console.log(err);
+                            return res.status(403).json({ message: "Couldn't save password reset data!" })
+                        })
+                })
+                .catch((err) => {
+                    console.log(err);
+                    return res.status(403).json({ message: "An error occured while hashing the password reset data!" })
+                })
+
+        })
+        .catch((err) => {
+            console.log(err);
+            return res.status(403).json({ message: "Clearing existing password reset records failed" })
+        })
+}
